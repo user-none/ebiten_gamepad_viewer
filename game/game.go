@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"log"
+	"math"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -128,24 +129,35 @@ func (g *Game) logInputs() {
 }
 
 func (g *Game) handleVibrate(cx, cy int) {
+	if g.handleVibrateRow(cx, cy, vibratePresets, 505, math.MaxInt64) {
+		return
+	}
+	g.handleVibrateRow(cx, cy, vibratePresets[:len(vibratePresets)-1], 545, 3*time.Second)
+}
+
+func (g *Game) handleVibrateRow(cx, cy int, presets []vibratePreset, y int, duration time.Duration) bool {
 	btnW := 120
 	btnH := 30
-	totalW := len(vibratePresets)*btnW + (len(vibratePresets)-1)*10
+	totalW := len(presets)*btnW + (len(presets)-1)*10
 	startX := (ScreenWidth - totalW) / 2
-	y := 530
 
-	for i, p := range vibratePresets {
+	for i, p := range presets {
 		bx := startX + i*(btnW+10)
 		if cx >= bx && cx <= bx+btnW && cy >= y && cy <= y+btnH {
-			log.Printf("vibrate: %s strong=%.2f weak=%.2f duration=2s", p.label, p.strong, p.weak)
+			d := duration
+			if p.strong == 0 && p.weak == 0 {
+				d = 0
+			}
+			log.Printf("vibrate: %s strong=%.2f weak=%.2f duration=%s", p.label, p.strong, p.weak, d)
 			ebiten.VibrateGamepad(g.gamepadID, &ebiten.VibrateGamepadOptions{
-				Duration:        2 * time.Second,
+				Duration:        d,
 				StrongMagnitude: p.strong,
 				WeakMagnitude:   p.weak,
 			})
-			break
+			return true
 		}
 	}
+	return false
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
@@ -236,13 +248,13 @@ func (g *Game) drawShoulderRow(screen *ebiten.Image) {
 }
 
 func (g *Game) drawStickButtons(screen *ebiten.Image) {
-	y := float32(310)
 	bw := float32(40)
 	bh := float32(28)
+	y := float32(400) - bh/2
 
-	drawButton(screen, 340, y, bw, bh, "L3",
+	drawButton(screen, 355, y, bw, bh, "L3",
 		g.isPressed(ebiten.StandardGamepadButtonLeftStick))
-	drawButton(screen, 420, y, bw, bh, "R3",
+	drawButton(screen, 405, y, bw, bh, "R3",
 		g.isPressed(ebiten.StandardGamepadButtonRightStick))
 }
 
@@ -250,30 +262,32 @@ func (g *Game) drawAnalogSticks(screen *ebiten.Image) {
 	stickR := float32(60)
 
 	lx := float32(250)
-	ly := float32(430)
+	ly := float32(400)
 	drawStick(screen, lx, ly, stickR, "Left Stick",
 		ebiten.StandardGamepadAxisValue(g.gamepadID, ebiten.StandardGamepadAxisLeftStickHorizontal),
 		ebiten.StandardGamepadAxisValue(g.gamepadID, ebiten.StandardGamepadAxisLeftStickVertical))
 
 	rx := float32(550)
-	ry := float32(430)
+	ry := float32(400)
 	drawStick(screen, rx, ry, stickR, "Right Stick",
 		ebiten.StandardGamepadAxisValue(g.gamepadID, ebiten.StandardGamepadAxisRightStickHorizontal),
 		ebiten.StandardGamepadAxisValue(g.gamepadID, ebiten.StandardGamepadAxisRightStickVertical))
 }
 
 func (g *Game) drawVibrateButtons(screen *ebiten.Image) {
+	g.drawVibrateRow(screen, vibratePresets, 505, "")
+	g.drawVibrateRow(screen, vibratePresets[:len(vibratePresets)-1], 545, " 3s")
+}
+
+func (g *Game) drawVibrateRow(screen *ebiten.Image, presets []vibratePreset, y int, suffix string) {
 	btnW := 120
 	btnH := 30
-	totalW := len(vibratePresets)*btnW + (len(vibratePresets)-1)*10
+	totalW := len(presets)*btnW + (len(presets)-1)*10
 	startX := (ScreenWidth - totalW) / 2
-	y := 530
 
 	cx, cy := ebiten.CursorPosition()
 
-	ebitenutil.DebugPrintAt(screen, "Vibrate:", startX-70, y+8)
-
-	for i, p := range vibratePresets {
+	for i, p := range presets {
 		bx := startX + i*(btnW+10)
 		hovered := cx >= bx && cx <= bx+btnW && cy >= y && cy <= y+btnH
 
@@ -284,9 +298,10 @@ func (g *Game) drawVibrateButtons(screen *ebiten.Image) {
 
 		vector.FillRect(screen, float32(bx), float32(y), float32(btnW), float32(btnH), clr, false)
 
-		labelX := bx + (btnW-len(p.label)*6)/2
+		text := p.label + suffix
+		labelX := bx + (btnW-len(text)*6)/2
 		labelY := y + 8
-		ebitenutil.DebugPrintAt(screen, p.label, labelX, labelY)
+		ebitenutil.DebugPrintAt(screen, text, labelX, labelY)
 	}
 }
 

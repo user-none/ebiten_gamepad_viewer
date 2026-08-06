@@ -2,7 +2,7 @@ module github.com/user-none/ebiten_gamepad_viewer
 
 go 1.25.7
 
-require github.com/hajimehoshi/ebiten/v2 v2.9.8
+require github.com/hajimehoshi/ebiten/v2 v2.9.9
 
 require (
 	github.com/ebitengine/gomobile v0.0.0-20260211053922-3d992dae95d1 // indirect

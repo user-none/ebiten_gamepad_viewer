@@ -67,6 +67,7 @@ type Game struct {
 	connected    bool
 	gamepadIDBuf []ebiten.GamepadID
 	touchIDBuf   []ebiten.TouchID
+	loggedAxes   []float64
 }
 
 func (g *Game) Update() error {
@@ -78,7 +79,9 @@ func (g *Game) Update() error {
 			name := ebiten.GamepadName(id)
 			sdlID := ebiten.GamepadSDLID(id)
 			standard := ebiten.IsStandardGamepadLayoutAvailable(id)
-			log.Printf("gamepad connected: id=%d name=%q sdl_id=%s standard=%v", id, name, sdlID, standard)
+			log.Printf("gamepad connected: id=%d name=%q sdl_id=%s standard=%v buttons=%d axes=%d",
+				id, name, sdlID, standard, ebiten.GamepadButtonCount(id), ebiten.GamepadAxisCount(id))
+			g.loggedAxes = nil
 			break
 		}
 	}
@@ -110,22 +113,22 @@ func (g *Game) checkVibrateInput() {
 }
 
 func (g *Game) logInputs() {
-	if !ebiten.IsStandardGamepadLayoutAvailable(g.gamepadID) {
-		return
+	if ebiten.IsStandardGamepadLayoutAvailable(g.gamepadID) {
+		for btn := ebiten.StandardGamepadButton(0); btn <= ebiten.StandardGamepadButtonMax; btn++ {
+			name := standardButtonNames[btn]
+			if name == "" {
+				name = fmt.Sprintf("button(%d)", btn)
+			}
+			if inpututil.IsStandardGamepadButtonJustPressed(g.gamepadID, btn) {
+				val := ebiten.StandardGamepadButtonValue(g.gamepadID, btn)
+				log.Printf("pressed:  %s (value=%.2f)", name, val)
+			}
+			if inpututil.IsStandardGamepadButtonJustReleased(g.gamepadID, btn) {
+				log.Printf("released: %s", name)
+			}
+		}
 	}
-	for btn := ebiten.StandardGamepadButton(0); btn <= ebiten.StandardGamepadButtonMax; btn++ {
-		name := standardButtonNames[btn]
-		if name == "" {
-			name = fmt.Sprintf("button(%d)", btn)
-		}
-		if inpututil.IsStandardGamepadButtonJustPressed(g.gamepadID, btn) {
-			val := ebiten.StandardGamepadButtonValue(g.gamepadID, btn)
-			log.Printf("pressed:  %s (value=%.2f)", name, val)
-		}
-		if inpututil.IsStandardGamepadButtonJustReleased(g.gamepadID, btn) {
-			log.Printf("released: %s", name)
-		}
-	}
+	g.logRawInputs()
 }
 
 func (g *Game) handleVibrate(cx, cy int) {
@@ -165,7 +168,13 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	g.drawHeader(screen)
 
-	if !g.connected || !ebiten.IsStandardGamepadLayoutAvailable(g.gamepadID) {
+	if !g.connected {
+		return
+	}
+
+	if !ebiten.IsStandardGamepadLayoutAvailable(g.gamepadID) {
+		g.drawRawView(screen)
+		g.drawVibrateButtons(screen)
 		return
 	}
 
@@ -187,7 +196,7 @@ func (g *Game) drawHeader(screen *ebiten.Image) {
 	if ebiten.IsStandardGamepadLayoutAvailable(g.gamepadID) {
 		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Gamepad: %s (Standard Layout)", name), 10, 10)
 	} else {
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Gamepad: %s (Non-Standard Layout - visual test unavailable)", name), 10, 10)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Gamepad: %s (Non-Standard Layout - raw inputs)", name), 10, 10)
 	}
 }
 
